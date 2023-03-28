@@ -4,6 +4,7 @@ namespace GeekBrains\LevelTwo\Blog\Repositories\UsersRepository;
 
 use GeekBrains\LevelTwo\Blog\Exceptions\UserNotFoundException;
 use GeekBrains\LevelTwo\Blog\User;
+use GeekBrains\LevelTwo\Blog\UUID;
 
 class InMemoryUsersRepository implements UsersRepositoryInterface
 {
@@ -21,7 +22,7 @@ class InMemoryUsersRepository implements UsersRepositoryInterface
      * @return User
      * @throws UserNotFoundException
      */
-    public function get(int $id): User
+    public function get(UUID $id): User
     {
         foreach ($this->users as $user) {
             if ($user->id() === $id) {
@@ -31,4 +32,8 @@ class InMemoryUsersRepository implements UsersRepositoryInterface
         throw new UserNotFoundException("User not found: $id");
     }
 
+    public function getByUsername(string $username): User
+    {
+        // TODO: Implement getByUsername() method.
+    }
 }

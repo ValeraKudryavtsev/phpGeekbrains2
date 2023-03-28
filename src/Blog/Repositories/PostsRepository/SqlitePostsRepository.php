@@ -2,73 +2,95 @@
 
 namespace GeekBrains\LevelTwo\Blog\Repositories\PostsRepository;
 
-use Exception;
+use GeekBrains\LevelTwo\Blog\Exceptions\InvalidArgumentException;
+use GeekBrains\LevelTwo\Blog\Exceptions\PostNotFoundException;
+use GeekBrains\LevelTwo\Blog\Exceptions\UserNotFoundException;
 use GeekBrains\LevelTwo\Blog\Post;
+use GeekBrains\LevelTwo\Blog\Repositories\UsersRepository\SqliteUsersRepository;
 use GeekBrains\LevelTwo\Blog\UUID;
+use Psr\Log\LoggerInterface;
 
-class SqlitePostsRepository
+
+class SqlitePostsRepository implements PostsRepositoryInterface
 {
-    private PDO $connection;
+    private \PDO $connection;
+    private LoggerInterface $logger;
 
-    public function __construct(PDO $connection)
+    public function __construct(\PDO $connection, LoggerInterface $logger)
     {
         $this->connection = $connection;
+        $this->logger = $logger;
     }
 
-    public function save(Post $post): void {
-        // Подготавливаем запрос
+    public function save(Post $post): void
+    {
         $statement = $this->connection->prepare(
-            'INSERT INTO posts (author, title, uuid, text) VALUES (:author, :title, :uuid, :text)'
+            'INSERT INTO posts (uuid, author_uuid, title, text) VALUES (:uuid, :author_uuid, :title, :text)'
         );
-        // Выполняем запрос с конкретными значениями
+
         $statement->execute([
-            ':author' => $post->getAuthor()->username(),
+            ':uuid' => $post->uuid(),
+            ':author_uuid' => $post->getUser()->uuid(),
             ':title' => $post->getTitle(),
-            ':uuid' => (string)$post->uuid(),
-            ':text' => $post->getText(),
+            ':text' => $post->getText()
         ]);
+
+        $this->logger->info("Post created: {$post->uuid()}");
     }
+
 
     /**
-     * @throws Exception
+     * @throws PostNotFoundException
+     * @throws UserNotFoundException
+     * @throws InvalidArgumentException
      */
-    public function get(UUID $uuid): Post {
+    public function get(UUID $uuid): Post
+    {
         $statement = $this->connection->prepare(
-            'SELECT * FROM posts WHERE uuid = ?'
+            'SELECT * FROM posts WHERE uuid = :uuid'
         );
+        $statement->execute([
+            ':uuid' => (string)$uuid,
+        ]);
 
-        $statement->execute([(string)$uuid]);
-        $result = $statement->fetch(PDO::FETCH_ASSOC);
-
-        // Бросаем исключение, если пользователь не найден
-        if ($result === false) {
-            throw new Exception(
-                "Cannot get post: $uuid"
-            );
-        }
         return $this->getPost($statement, $uuid);
     }
 
     /**
-     * @throws Exception
+     * @throws PostNotFoundException
+     * @throws InvalidArgumentException|UserNotFoundException
      */
-    private function getPost(PDOStatement $statement, string $errorString): Post
+    private function getPost(\PDOStatement $statement, string $postUuId): Post
     {
-        $usersRepository = new SqliteUsersRepository($this->connection);
-
         $result = $statement->fetch(\PDO::FETCH_ASSOC);
+
         if ($result === false) {
-            throw new Exception(
-                "Cannot find post: $errorString"
-            );
+            $message = "Cannot find post: $postUuId";
+            $this->logger->warning($message);
+
+            throw new PostNotFoundException($message);
         }
 
-        // Создаём объект пользователя с полем username
+        $userRepository = new SqliteUsersRepository($this->connection);
+        $user = $userRepository->get(new UUID($result['author_uuid']));
+
         return new Post(
             new UUID($result['uuid']),
-            $usersRepository->getByUsername($result['author']),
+            $user,
             $result['title'],
-            $result['text'],
+            $result['text']
         );
+
+    }
+
+    public function delete(UUID $uuid): void
+    {
+        $statement = $this->connection->prepare(
+            'DELETE FROM posts WHERE posts.uuid=:uuid;'
+        );
+
+        $statement->execute([
+            ':uuid' => $uuid,
+        ]);
     }
 }

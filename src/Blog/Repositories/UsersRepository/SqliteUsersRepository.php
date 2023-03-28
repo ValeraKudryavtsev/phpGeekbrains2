@@ -2,8 +2,12 @@
 
 namespace GeekBrains\LevelTwo\Blog\Repositories\UsersRepository;
 
+use GeekBrains\LevelTwo\Blog\Commands\Arguments;
+use GeekBrains\LevelTwo\Blog\Commands\CreateUserCommand;
 use GeekBrains\LevelTwo\Blog\Exceptions\InvalidArgumentException;
 use GeekBrains\LevelTwo\Blog\Exceptions\UserNotFoundException;
+use GeekBrains\LevelTwo\Blog\Repositories\UsersRepository\UsersRepositoryInterface;
+use GeekBrains\LevelTwo\Blog\Repositories\UsersRepository\UsersRepositoryInterface;
 use GeekBrains\LevelTwo\Blog\User;
 use GeekBrains\LevelTwo\Blog\UUID;
 use GeekBrains\LevelTwo\Person\Name;
@@ -25,8 +29,11 @@ class SqliteUsersRepository implements UsersRepositoryInterface
 
         // Подготавливаем запрос
         $statement = $this->connection->prepare(
-            'INSERT INTO users (first_name, last_name, uuid, username) 
-VALUES (:first_name, :last_name, :uuid, :username)'
+            'INSERT INTO users (first_name, password, last_name, uuid, username)
+VALUES (:first_name, :password, :last_name, :uuid, :username)
+                    ON CONFLICT (uuid) DO UPDATE SET
+                    first_name = :first_name,
+                    last_name = :last_name'
 
         );
         // Выполняем запрос с конкретными значениями
@@ -35,12 +42,13 @@ VALUES (:first_name, :last_name, :uuid, :username)'
             ':last_name' => $user->name()->last(),
             ':uuid' => (string)$user->uuid(),
             ':username' => $user->username(),
+            ':password' => $user->hashedPassword(),
         ]);
 
     }
 
     // Также добавим метод для получения
-        // пользователя по его UUID
+    // пользователя по его UUID
     /**
      * @throws UserNotFoundException
      * @throws InvalidArgumentException
@@ -52,14 +60,7 @@ VALUES (:first_name, :last_name, :uuid, :username)'
         );
 
         $statement->execute([(string)$uuid]);
-        $result = $statement->fetch(PDO::FETCH_ASSOC);
 
-        // Бросаем исключение, если пользователь не найден
-        if ($result === false) {
-            throw new UserNotFoundException(
-                "Cannot get user: $uuid"
-            );
-        }
         return $this->getUser($statement, $uuid);
     }
 
@@ -76,7 +77,7 @@ VALUES (:first_name, :last_name, :uuid, :username)'
             ':username' => $username,
         ]);
 
-       return $this->getUser($statement, $username);
+        return $this->getUser($statement, $username);
     }
 
     /**
@@ -96,6 +97,9 @@ VALUES (:first_name, :last_name, :uuid, :username)'
             new UUID($result['uuid']),
             new Name($result['first_name'], $result['last_name']),
             $result['username'],
+            $result['password']
         );
     }
+
+
 }
