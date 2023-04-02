@@ -60,5 +60,5 @@ switch ($route) {
         break;
 
     default:
-        echo 'Command error';
+        echo 'Commands error';
 }

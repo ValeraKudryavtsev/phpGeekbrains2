@@ -1,25 +1,44 @@
 <?php
 
-use GeekBrains\LevelTwo\Blog\Command\Arguments;
-use GeekBrains\LevelTwo\Blog\Command\CreateUserCommand;
-use GeekBrains\LevelTwo\Blog\Repositories\UsersRepository\SqliteUsersRepository;
-use GeekBrains\LevelTwo\Blog\Repositories\PostsRepository\SqlitePostsRepository;
-use GeekBrains\LevelTwo\Blog\Repositories\CommentsRepository\SqliteCommentsRepository;
+
+use GeekBrains\LevelTwo\Blog\Commands\FakeData\PopulateDB;
+use GeekBrains\LevelTwo\Blog\Commands\Posts\DeletePost;
+use GeekBrains\LevelTwo\Blog\Commands\Users\CreateUser;
+use GeekBrains\LevelTwo\Blog\Commands\Users\UpdateUser;
+use Psr\Log\LoggerInterface;
+use Symfony\Component\Console\Application;
+
+$container = require __DIR__ . '/bootstrap.php';
+
+$logger = $container->get(LoggerInterface::class);
 
 
-include __DIR__ . "/vendor/autoload.php";
+// Создаём объект приложения
+$application = new Application();
 
-//Создаём объект подключения к SQLite
-$connection = new PDO('sqlite:' . __DIR__ . '/blog.sqlite');
+// Перечисляем классы команд
+$commandsClasses = [
+    CreateUser::class,
+    DeletePost::class,
+    UpdateUser::class,
+    PopulateDB::class,
 
-$usersRepository = new SqliteUsersRepository($connection);
-$postsRepository = new SqlitePostsRepository($connection);
-$commentsRepository = new SqliteCommentsRepository($connection);
 
-$command = new CreateUserCommand($usersRepository);
+];
+
+foreach ($commandsClasses as $commandClass) {
+// Посредством контейнера
+// создаём объект команды
+    $command = $container->get($commandClass);
+// Добавляем команду к приложению
+    $application->add($command);
+}
 
 try {
-    $command->handle(Arguments::fromArgv($argv));
+
+    $application->run();
+
 } catch (Exception $e) {
+    $logger->error($e->getMessage(), ['exception' => $e]);
     echo $e->getMessage();
 }
